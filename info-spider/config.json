@@ -1,0 +1,7 @@
+{
+  "path": "",
+  "user": "DragonOS-Community",
+  "token": "",
+  "black_list": ["grub","tar","gcc","acpi-rs","mini-backtrace","binutils","mpc","mpfr","gmp-6.2.1","flex","relibc"],
+  "white_list": ["fslongjin"]
+}
