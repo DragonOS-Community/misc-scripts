@@ -12,8 +12,10 @@ __all__ = ["get_dict", "get_json"]
 
 function_list = ["get_cnt", "get_pr", "get_contributors"]  # 信息获取函数
 PATH = ""  # 文件输出路径以及配置文件存储路径，为空则默认在脚本文件同一目录下`
+head1 = ["name", "starred", "watching", "fork", "issue", "pull_request", "contributor"]  # 表头
+head2 = ["name", "contributions"]
 
-# TODO 手动配置线程数与线程时间
+# 配置文件读取
 with open(path.join(PATH, "config.json"), "r", encoding="utf-8") as f:
     # 配置文件选项说明
     dic = json.loads(f.read())
@@ -42,7 +44,7 @@ def get_repo(repo_dict):
     :param repo_dict:仓库字典
     :return: py字典
     """
-    result = {"name": repo_dict.get("name"), "description": repo_dict.get("description")}
+    result = {"name": str(repo_dict.get("name")), "description": repo_dict.get("description")}
     for fuc in function_list:
         result.update(eval("%s(repo_dict)" % (fuc)))
     return result
@@ -60,11 +62,11 @@ def get_cnt(repo_dict):
 
 def get_pr(repo_dict):
     pr_dict = get_info(r"https://api.github.com/repos/" + repo_dict["full_name"] + "/pulls")
-    return {"pull_requests": len(pr_dict)}
+    return {"pull_request": len(pr_dict)}
 
 
 def get_contributors(repo_dict):
-    result = {"contributor": []}
+    result = {"contributor_list": []}
     contri_dict = get_info(repo_dict["contributors_url"])
     for dic in contri_dict:
         # 黑白名单实现
@@ -76,7 +78,8 @@ def get_contributors(repo_dict):
             "id": dic["id"],
             "contributions": dic["contributions"]
         }
-        result["contributor"].append(tmp)
+        result["contributor_list"].append(tmp)
+    result["contributor"] = len(result["contributor_list"])
     return result
 
 
@@ -87,13 +90,14 @@ def sum_up(dic):
         "watching": 0,
         "fork": 0,
         "issue": 0,
-        "pull_requests": 0,
-        "contributor": []
+        "pull_request": 0,
+        "contributor": 0,
+        "contributor_list": []
     }}
     pos = 0
     for repo in dic["repositories"]:
         for k in result["total"].keys():
-            if k != "contributor":
+            if k != "contributor_list":
                 result["total"][k] += repo[k]
             else:
                 # contributor累加
@@ -105,7 +109,8 @@ def sum_up(dic):
                     else:
                         result["total"][k][contribute_existed[contribute["name"]]]["contributions"] += \
                             contribute["contributions"]
-    result["total"]["contributor"].sort(key=lambda a: a["contributions"], reverse=True)
+    result["total"]["contributor_list"].sort(key=lambda a: a["contributions"], reverse=True)
+    result["total"]["contributor"] = len(contribute_existed)
     dic.update(result)
     return dic
 
@@ -124,11 +129,13 @@ def get_dict():
         info_dict["repositories"].append(result)
         return 1
 
+    # 分别获取每个仓库
     thread_list = []
     wrong_list = []
     for dic in root_dict:
         thread_list.append(pool.submit(thread, dic))
         time.sleep(0.05)
+        # 等待线程完毕
     while thread_list:
         for x in thread_list:
             if x.done() and x.result():
@@ -138,7 +145,7 @@ def get_dict():
                 thread_list.remove(x)
             stdout.write('\r %d threads left. . .' % (len(thread_list)))
 
-    # 输入线程完成情况
+    # 输出线程完成情况
     stdout.write('\r Done!During the process,%d exceptions have been raised. . . ' % (len(wrong_list)))
     stdout.flush()
 
@@ -147,28 +154,69 @@ def get_dict():
             stdout.write(str(i) + "\n")
             stdout.flush()
 
-    return info_dict
+    # 按名字字母排序
+    info_dict["repositories"].sort(key=lambda a:a["name"].lower())
+    return sum_up(info_dict)
 
 
-def get_json():
+def get_json(dic=None):
     """
     :return:带有信息的json文本
     """
-    return json.dumps(sum_up(get_dict()), sort_keys=False, indent=4, separators=(',', ':'), ensure_ascii=False)
+    if not dic:
+        return json.dumps(get_dict(), sort_keys=False, indent=4, separators=(',', ':'), ensure_ascii=False)
+    else:
+        return json.dumps(dic, sort_keys=False, indent=4, separators=(',', ':'), ensure_ascii=False)
 
 
-def wt_json():
-    text = get_json()
+def wt_json(text):
     if PATH:
         with open(path.join(PATH, "github_info.json"), "w", encoding="utf-8") as f:
             f.write(text)
             f.flush()
     else:
-        with open("github_info.json", "w", encoding="utf-8") as f:
+        with open(path.join(PATH, "github_info.json"), "w", encoding="utf-8") as f:
             f.write(text)
             f.flush()
 
 
+def wt_excel(dic):
+    wb = xlwt.Workbook()
+    # try:
+    # 写入仓库数据
+    tb1 = wb.add_sheet("repositories", cell_overwrite_ok=True)
+    for i in range(len(head1)):
+        tb1.write(0, i, head1[i])
+    for i in range(len(dic["repositories"])):
+        for j in range(len(head1)):
+            tb1.write(i + 1, j, dic["repositories"][i][head1[j]])
+    # 写入总计数据
+    for i in range(len(head1)):
+        if head1[i] == "name":
+            tb1.write(len(dic["repositories"]) + 1, i, "Total")
+            continue
+        # if type(dic["total"][head1[i]]) == ("dict" or "list"):
+        #     tb1.write(len(dic["repositories"]) + 2, i, len(dic["total"][head1[i]]))
+        # else:
+        tb1.write(len(dic["repositories"]) + 1, i, dic["total"][head1[i]])
+    # 写入贡献者名单
+    tb2 = wb.add_sheet("contributor list", cell_overwrite_ok=True)
+    for i in range(len(head2)):
+        tb2.write(0, i, head2[i])
+    for i in range(len(dic["total"]["contributor_list"])):
+        for j in range(len(head2)):
+            tb2.write(i + 1, j, dic["total"]["contributor_list"][i][head2[j]])
+
+    # except Exception as e:
+    #     print("\n")
+    #     print(e)
+        wb.save(path.join(PATH, "statistics.xls"))
+
+
 if __name__ == '__main__':
-    wt_json()
-    # 　TODO　编写xl接口
+    dic = get_dict()
+    wt_json(get_json(dic))
+    wt_excel(dic)
+
+    # TODO 编写文档时要注意head以及json的对应
+    # TODO 增加统计条目需要：
