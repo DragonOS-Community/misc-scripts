@@ -10,31 +10,23 @@ from concurrent.futures import ThreadPoolExecutor
 
 __all__ = ["get_dict", "get_json"]
 
-
 function_list = ["get_cnt", "get_pr", "get_contributors"]  # 信息获取函数
-
-# 配置文件选项说明
 PATH = ""  # 文件输出路径以及配置文件存储路径，为空则默认在脚本文件同一目录下`
-USER = ""  # 目标用户
-TOKEN = ""  # github访问令牌，用于增加api访问次数
-BLACKLIST = []  # contributor获取的仓库黑名单
-WHITELIST = []  # 仓库黑名单中的contributor白名单
+
 # TODO 手动配置线程数与线程时间
-pool = ThreadPoolExecutor(max_workers=8)
+with open(path.join(PATH, "config.json"), "r", encoding="utf-8") as f:
+    # 配置文件选项说明
+    dic = json.loads(f.read())
+    USER = dic["user"]  # 目标用户
+    TOKEN = dic["token"]  # github访问令牌，用于增加api访问次数
+    PARALLEL = dic["parallel_threads"]  # 最并行线程数
+    BLACKLIST = dic["black_list"]  # contributor获取的仓库黑名单
+    WHITELIST = dic["white_list"]  # 仓库黑名单中的contributor白名单
+
+pool = ThreadPoolExecutor(max_workers=PARALLEL)
 
 
-def rd_config():
-    global USER, TOKEN, BLACKLIST, PATH,WHITELIST
-    with open(path.join(PATH, "config.json"), "r", encoding="utf-8") as f:
-        dic = json.loads(f.read())
-        PATH = dic["path"]
-        USER = dic["user"]
-        TOKEN = dic["token"]
-        BLACKLIST = dic["black_list"]
-        WHITELIST = dic["white_list"]
-
-
-@retry(Exception, 5, 2, 16)
+@retry(Exception, 5, 2, 8)
 def get_info(url):
     """
     :param url:请求的api链接
@@ -123,7 +115,6 @@ def get_dict():
     :return:带有信息的py字典
     """
     # 获取用户信息
-    rd_config()
     info_dict = {"repositories": []}
     root_dict = get_info(r"https://api.github.com/users/" + USER + r"/repos")
 
@@ -137,7 +128,7 @@ def get_dict():
     wrong_list = []
     for dic in root_dict:
         thread_list.append(pool.submit(thread, dic))
-        time.sleep(0.1)
+        time.sleep(0.05)
     while thread_list:
         for x in thread_list:
             if x.done() and x.result():
@@ -148,7 +139,7 @@ def get_dict():
             stdout.write('\r %d threads left. . .' % (len(thread_list)))
 
     # 输入线程完成情况
-    stdout.write('\r Done!During the process,%d exceptions have been raised. . . '%(len(wrong_list)))
+    stdout.write('\r Done!During the process,%d exceptions have been raised. . . ' % (len(wrong_list)))
     stdout.flush()
 
     if len(wrong_list):
