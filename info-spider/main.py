@@ -19,7 +19,7 @@ USER = ""  # 目标用户
 TOKEN = ""  # github访问令牌，用于增加api访问次数
 BLACKLIST = []  # contributor获取的仓库黑名单
 WHITELIST = []  # 仓库黑名单中的contributor白名单
-
+# TODO 手动配置线程数与线程时间
 pool = ThreadPoolExecutor(max_workers=8)
 
 
