@@ -10,6 +10,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 __all__ = ["get_dict", "get_json"]
 
+
 function_list = ["get_cnt", "get_pr", "get_contributors"]  # 信息获取函数
 
 # 配置文件选项说明
