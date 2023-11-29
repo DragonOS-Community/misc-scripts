@@ -16,16 +16,20 @@ head1 = ["name", "starred", "watching", "fork", "issue", "pull_request", "contri
 head2 = ["name", "contributions"]
 
 # 配置文件读取
-with open(path.join(PATH, "config.json"), "r", encoding="utf-8") as f:
-    # 配置文件选项说明
-    dic = json.loads(f.read())
-    USER = dic["user"]  # 目标用户
-    TOKEN = dic["token"]  # github访问令牌，用于增加api访问次数
-    PARALLEL = dic["parallel_threads"]  # 最并行线程数
-    BLACKLIST = dic["black_list"]  # contributor获取的仓库黑名单
-    WHITELIST = dic["white_list"]  # 仓库黑名单中的contributor白名单
+try:
+    with open(path.join(PATH, "config.json"), "r", encoding="utf-8") as f:
+        # 配置文件选项说明
+        dic = json.loads(f.read())
+        USER = dic["user"]  # 目标用户
+        TOKEN = dic["token"]  # github访问令牌，用于增加api访问次数
+        PARALLEL = dic["parallel_threads"]  # 最并行线程数
+        BLACKLIST = dic["black_list"]  # contributor获取的仓库黑名单
+        WHITELIST = dic["white_list"]  # 仓库黑名单中的contributor白名单
 
-pool = ThreadPoolExecutor(max_workers=PARALLEL)
+    pool = ThreadPoolExecutor(max_workers=PARALLEL)
+except Exception as e:
+    print("There are some errors while getting configure information!\n")
+    raise e
 
 
 @retry(Exception, 5, 2, 8)
@@ -155,7 +159,7 @@ def get_dict():
             stdout.flush()
 
     # 按名字字母排序
-    info_dict["repositories"].sort(key=lambda a:a["name"].lower())
+    info_dict["repositories"].sort(key=lambda a: a["name"].lower())
     return sum_up(info_dict)
 
 
@@ -207,9 +211,9 @@ def wt_excel(dic):
         for j in range(len(head2)):
             tb2.write(i + 1, j, dic["total"]["contributor_list"][i][head2[j]])
 
-    # except Exception as e:
-    #     print("\n")
-    #     print(e)
+        # except Exception as e:
+        #     print("\n")
+        #     print(e)
         wb.save(path.join(PATH, "statistics.xls"))
 
 
@@ -217,6 +221,3 @@ if __name__ == '__main__':
     dic = get_dict()
     wt_json(get_json(dic))
     wt_excel(dic)
-
-    # TODO 编写文档时要注意head以及json的对应
-    # TODO 增加统计条目需要：
